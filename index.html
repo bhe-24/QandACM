@@ -12,9 +12,11 @@
             --primary: #003366; --secondary: #005a9c;
         }
         body {
-            font-family: 'Poppins', sans-serif; margin: 0;
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
             background: linear-gradient(45deg, #f3e7e9, #e3eeff, #e1f4e3);
-            background-size: 400% 400%; animation: gradientBG 15s ease infinite;
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
         }
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .header { text-align: center; padding: 20px; color: var(--primary); }
@@ -40,7 +42,6 @@
         .comment-form { display: flex; gap: 5px; margin-top: 10px; }
         .comment-form input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 8px; }
         .comment-form button { padding: 8px 12px; font-size: 12px; height: 38px;}
-        .hidden { display: none !important; }
         .loader-shape { width: 20px; height: 20px; animation: morph-and-color 3s linear infinite; }
         @keyframes morph-and-color { 0% { border-radius: 50%; background: #4285F4; transform: rotate(0deg); } 25% { border-radius: 50%; background: #4285F4; } 33% { border-radius: 0; background: #DB4437; } 58% { border-radius: 0; background: #DB4437; } 66% { border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background: #F4B400; transform: rotate(180deg); } 91% { border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background: #F4B400; } 100% { border-radius: 50%; clip-path: none; background: #0F9D58; transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -64,7 +65,6 @@
         </form>
     </div>
     <div id="wall" class="wall"></div>
-    <div id="loading-overlay" class="hidden"><p id="loading-text">Memuat...</p></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -77,45 +77,100 @@ document.addEventListener('DOMContentLoaded', () => {
     function showButtonLoading(button) { button.dataset.originalText = button.innerHTML; button.innerHTML = '<div class="loader-shape"></div>'; button.disabled = true; }
     function hideButtonLoading(button) { button.innerHTML = button.dataset.originalText; button.disabled = false; }
     function timeAgo(dateString) { const now = new Date(); const past = new Date(dateString); const seconds = Math.floor((now - past) / 1000); let interval = seconds / 31536000; if (interval > 1) return Math.floor(interval) + " tahun lalu"; interval = seconds / 2592000; if (interval > 1) return Math.floor(interval) + " bulan lalu"; interval = seconds / 86400; if (interval > 1) return Math.floor(interval) + " hari lalu"; interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + " jam lalu"; interval = seconds / 60; if (interval > 1) return Math.floor(interval) + " menit lalu"; return "beberapa detik lalu"; }
-
-    function getUsername() {
-        let user = sessionStorage.getItem('apresiasiUser');
-        if (!user) { user = randomUsernames[Math.floor(Math.random() * randomUsernames.length)]; sessionStorage.setItem('apresiasiUser', user); }
-        return user;
-    }
+    function getUsername() { let user = sessionStorage.getItem('apresiasiUser'); if (!user) { user = randomUsernames[Math.floor(Math.random() * randomUsernames.length)]; sessionStorage.setItem('apresiasiUser', user); } return user; }
     
+    // --- FUNGSI UTAMA YANG TELAH DIPERBARUI (PEMBARUAN CERDAS) ---
     async function fetchAndRenderPosts(isSilent = false) {
-        if (!isSilent) console.log('Memuat pesan...');
+        if (!isSilent) document.body.style.cursor = 'wait'; // Tampilkan kursor loading
         try {
             const response = await fetch(WEB_APP_URL);
             const posts = await response.json();
-            wall.innerHTML = '';
-            posts.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+            posts.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp)); // Selalu urutkan dari terbaru
             
+            const existingPostIds = new Set([...wall.querySelectorAll('.post-card')].map(card => card.dataset.postId));
+            
+            // 1. Tambahkan post yang baru
             posts.forEach(post => {
-                const card = document.createElement('div');
-                card.className = 'post-card';
-                card.style.backgroundColor = post.Warna;
-                let commentsHTML = '';
-                post.comments.sort((a,b) => new Date(a.Timestamp) - new Date(b.Timestamp));
-                post.comments.forEach(comment => {
-                    // --- KODE DIAGNOSTIK DITANAM DI SINI ---
-                    console.log("Mencoba memproses timestamp:", comment.Timestamp); 
-                    const duration = timeAgo(comment.Timestamp);
-                    commentsHTML += `<div class="comment"><div class="comment-header"><span class="author">${comment.UsernameRandom}:</span><span class="timestamp">${duration}</span></div>${comment.IsiKomentar}</div>`;
-                });
-                card.innerHTML = `<div><span class="author">${post.UsernameRandom}</span><p class="content">${post.Pesan}</p></div><div class="comments-section">${commentsHTML}<form class="comment-form" data-post-id="${post.IDPost}"><input type="text" placeholder="Tulis balasan..." required><button type="submit" class="btn">Balas</button></form></div>`;
-                wall.appendChild(card);
+                if (!existingPostIds.has(post.IDPost)) {
+                    const card = createPostCard(post);
+                    wall.prepend(card); // Tambahkan di paling atas
+                } else {
+                    // 2. Perbarui komentar untuk post yang sudah ada
+                    const existingCard = wall.querySelector(`[data-post-id="${post.IDPost}"]`);
+                    const commentsContainer = existingCard.querySelector('.comments-section-content');
+                    const existingCommentIds = new Set([...commentsContainer.querySelectorAll('.comment')].map(c => c.dataset.commentId));
+                    
+                    post.comments.forEach(comment => {
+                        if (!existingCommentIds.has(comment.IDKomentar)) {
+                            const commentDiv = createCommentDiv(comment);
+                            commentsContainer.appendChild(commentDiv); // Tambahkan komentar baru
+                        }
+                    });
+                }
             });
-        } catch (error) { console.error("Gagal memuat:", error); wall.innerHTML = '<p>Gagal memuat pesan. Coba segarkan halaman.</p>'; }
+
+        } catch (error) { console.error("Gagal memuat:", error); }
+        finally { if (!isSilent) document.body.style.cursor = 'default'; }
+    }
+
+    function createPostCard(post) {
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.style.backgroundColor = post.Warna;
+        card.dataset.postId = post.IDPost;
+
+        // Pisahkan konten komentar agar bisa diupdate
+        card.innerHTML = `
+            <div><span class="author">${post.UsernameRandom}</span><p class="content">${post.Pesan}</p></div>
+            <div class="comments-section">
+                <div class="comments-section-content"></div>
+                <form class="comment-form" data-post-id="${post.IDPost}">
+                    <input type="text" placeholder="Tulis balasan..." required>
+                    <button type="submit" class="btn">Balas</button>
+                </form>
+            </div>`;
+
+        const commentsContainer = card.querySelector('.comments-section-content');
+        post.comments.sort((a,b) => new Date(a.Timestamp) - new Date(b.Timestamp));
+        post.comments.forEach(comment => {
+            commentsContainer.appendChild(createCommentDiv(comment));
+        });
+        return card;
+    }
+
+    function createCommentDiv(comment) {
+        const commentDiv = document.createElement('div');
+        commentDiv.className = 'comment';
+        commentDiv.dataset.commentId = comment.IDKomentar;
+        commentDiv.innerHTML = `<div class="comment-header"><span class="author">${comment.UsernameRandom}:</span><span class="timestamp">${timeAgo(comment.Timestamp)}</span></div>${comment.IsiKomentar}`;
+        return commentDiv;
     }
 
     postForm.onsubmit = async (e) => { e.preventDefault(); const btn = e.target.querySelector('button'); showButtonLoading(btn); const payload = { action: "addPost", UsernameRandom: currentUser, Pesan: document.getElementById('pesan').value, Warna: document.querySelector('input[name="warna"]:checked').value }; try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload), mode: 'no-cors' }); postForm.reset(); await fetchAndRenderPosts(true); } catch (error) { alert("Gagal mengirim pesan."); } finally { hideButtonLoading(btn); } };
-    wall.addEventListener('submit', async (e) => { if (e.target.classList.contains('comment-form')) { e.preventDefault(); const form = e.target; const btn = form.querySelector('button'); const input = form.querySelector('input'); const postId = form.dataset.postId; showButtonLoading(btn); const payload = { action: "addComment", UsernameRandom: currentUser, IDPost: postId, IsiKomentar: input.value }; try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload), mode: 'no-cors' }); await fetchAndRenderPosts(true); } catch (error) { alert("Gagal mengirim balasan."); } finally { hideButtonLoading(btn); } } });
+    
+    wall.addEventListener('submit', async (e) => {
+        if (e.target.classList.contains('comment-form')) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('button');
+            const input = form.querySelector('input');
+            const postId = form.dataset.postId;
+            
+            showButtonLoading(btn);
+            const payload = { action: "addComment", UsernameRandom: currentUser, IDPost: postId, IsiKomentar: input.value };
+            try {
+                await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload), mode: 'no-cors' });
+                input.value = ''; // Hanya kosongkan input setelah berhasil
+                await fetchAndRenderPosts(true);
+            } catch (error) { alert("Gagal mengirim balasan."); }
+            finally { hideButtonLoading(btn); }
+        }
+    });
 
+    // Inisialisasi
     currentUser = getUsername();
     fetchAndRenderPosts();
-    setInterval(() => fetchAndRenderPosts(true), 15000);
+    setInterval(() => fetchAndRenderPosts(true), 10000); // Refresh lebih cepat
 });
 </script>
 </body>
