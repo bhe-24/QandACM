@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Papan Apresiasi - Cendekia Aksara</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        :root {
+            --note-yellow: #fff7d1; --note-blue: #d1f0ff;
+            --note-pink: #ffd1dc; --note-green: #d1ffdb;
+            --primary: #003366; --secondary: #005a9c;
+        }
+        body {
+            font-family: 'Poppins', sans-serif; margin: 0;
+            background: linear-gradient(45deg, #f3e7e9, #e3eeff, #e1f4e3);
+            background-size: 400% 400%; animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .header { text-align: center; padding: 20px; color: var(--primary); }
+        .form-container { background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); max-width: 600px; margin: 20px auto; padding: 30px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 5px; }
+        .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; resize: vertical; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; color: #fff; background-color: var(--secondary); font-weight: 600; cursor: pointer; display: flex; justify-content: center; align-items: center; height: 48px; }
+        .btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .color-picker { display: flex; gap: 10px; margin-top: 10px; }
+        .color-picker input { display: none; }
+        .color-picker label { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s; }
+        .color-picker input:checked + label { border-color: var(--secondary); transform: scale(1.2); }
+        .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 30px; }
+        .post-card { background: #fff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); word-wrap: break-word; animation: fadeIn 0.5s; padding: 20px; }
+        .post-card .author { font-weight: 700; color: var(--primary); }
+        .post-card .content { margin: 10px 0; white-space: pre-wrap; }
+        .comments-section { border-top: 1px solid #eee; margin-top: 15px; padding-top: 15px; }
+        .comment { background: #f0f4f8; padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 0.9em; }
+        .comment .comment-header { display: flex; justify-content: space-between; align-items: baseline; }
+        .comment .author { font-weight: 600; }
+        .comment .timestamp { font-size: 0.75em; color: #666; }
+        .comment-form { display: flex; gap: 5px; margin-top: 10px; }
+        .comment-form input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 8px; }
+        .comment-form button { padding: 8px 12px; font-size: 12px; height: 38px;}
+        .hidden { display: none !important; }
+        .loader-shape { width: 20px; height: 20px; animation: morph-and-color 3s linear infinite; }
+        @keyframes morph-and-color { 0% { border-radius: 50%; background: #4285F4; transform: rotate(0deg); } 25% { border-radius: 50%; background: #4285F4; } 33% { border-radius: 0; background: #DB4437; } 58% { border-radius: 0; background: #DB4437; } 66% { border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background: #F4B400; transform: rotate(180deg); } 91% { border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background: #F4B400; } 100% { border-radius: 50%; clip-path: none; background: #0F9D58; transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="header"><h1>Papan Apresiasi Tim Cendekia Aksara</h1></div>
+    <div class="form-container">
+        <form id="post-form">
+            <div class="form-group"><label for="pesan">Tulis apresiasi atau pertanyaan Anda di sini:</label><textarea id="pesan" rows="4" required></textarea></div>
+            <div class="form-group">
+                <label>Pilih Warna Kartu:</label>
+                <div class="color-picker">
+                    <input type="radio" id="c-yellow" name="warna" value="#fff7d1" checked><label for="c-yellow" style="background:var(--note-yellow);"></label>
+                    <input type="radio" id="c-blue" name="warna" value="#d1f0ff"><label for="c-blue" style="background:var(--note-blue);"></label>
+                    <input type="radio" id="c-pink" name="warna" value="#ffd1dc"><label for="c-pink" style="background:var(--note-pink);"></label>
+                    <input type="radio" id="c-green" name="warna" value="#d1ffdb"><label for="c-green" style="background:var(--note-green);"></label>
+                </div>
+            </div>
+            <button type="submit" class="btn">Kirim Pesan</button>
+        </form>
+    </div>
+    <div id="wall" class="wall"></div>
+    <div id="loading-overlay" class="hidden"><p id="loading-text">Memuat...</p></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz7BpVulwMMzbSH7bImhnqpD0QDY2PdGLgsWrcGs0bdghxg9K0hg9xFBUA_S8cMIASfJw/exec';
+    const wall = document.getElementById('wall');
+    const postForm = document.getElementById('post-form');
+    let currentUser = '';
+    const randomUsernames = ["Adiwarna","Arunika","Baskara","Bening","Bestari","Cakrawala","Candra","Darsa","Deras","Darma","Esa","Elegi","Faedah","Gandewa","Genta","Galaksi","Harsa","Haru","Indurasmi","Intisari","Jatmika","Jelita","Karsa","Kirana","Lembayung","Langgam","Mahardika","Mega","Meraki","Nirmala","Nuraga","Pancarona","Puspa","Purnama","Rahara","Rona","Rinai","Sasmita","Sandya","Sawala","Senandika","Swastamita","Suryakanta","Syahdu","Tirta","Tentram","Wicaksana","Wiyata","Zaman"];
+
+    function showButtonLoading(button) { button.dataset.originalText = button.innerHTML; button.innerHTML = '<div class="loader-shape"></div>'; button.disabled = true; }
+    function hideButtonLoading(button) { button.innerHTML = button.dataset.originalText; button.disabled = false; }
+    function timeAgo(dateString) { const now = new Date(); const past = new Date(dateString); const seconds = Math.floor((now - past) / 1000); let interval = seconds / 31536000; if (interval > 1) return Math.floor(interval) + " tahun lalu"; interval = seconds / 2592000; if (interval > 1) return Math.floor(interval) + " bulan lalu"; interval = seconds / 86400; if (interval > 1) return Math.floor(interval) + " hari lalu"; interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + " jam lalu"; interval = seconds / 60; if (interval > 1) return Math.floor(interval) + " menit lalu"; return "beberapa detik lalu"; }
+
+    function getUsername() {
+        let user = sessionStorage.getItem('apresiasiUser');
+        if (!user) { user = randomUsernames[Math.floor(Math.random() * randomUsernames.length)]; sessionStorage.setItem('apresiasiUser', user); }
+        return user;
+    }
+    
+    async function fetchAndRenderPosts(isSilent = false) {
+        if (!isSilent) console.log('Memuat pesan...');
+        try {
+            const response = await fetch(WEB_APP_URL);
+            const posts = await response.json();
+            wall.innerHTML = '';
+            posts.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+            
+            posts.forEach(post => {
+                const card = document.createElement('div');
+                card.className = 'post-card';
+                card.style.backgroundColor = post.Warna;
+                let commentsHTML = '';
+                post.comments.sort((a,b) => new Date(a.Timestamp) - new Date(b.Timestamp));
+                post.comments.forEach(comment => {
+                    // --- KODE DIAGNOSTIK DITANAM DI SINI ---
+                    console.log("Mencoba memproses timestamp:", comment.Timestamp); 
+                    const duration = timeAgo(comment.Timestamp);
+                    commentsHTML += `<div class="comment"><div class="comment-header"><span class="author">${comment.UsernameRandom}:</span><span class="timestamp">${duration}</span></div>${comment.IsiKomentar}</div>`;
+                });
+                card.innerHTML = `<div><span class="author">${post.UsernameRandom}</span><p class="content">${post.Pesan}</p></div><div class="comments-section">${commentsHTML}<form class="comment-form" data-post-id="${post.IDPost}"><input type="text" placeholder="Tulis balasan..." required><button type="submit" class="btn">Balas</button></form></div>`;
+                wall.appendChild(card);
+            });
+        } catch (error) { console.error("Gagal memuat:", error); wall.innerHTML = '<p>Gagal memuat pesan. Coba segarkan halaman.</p>'; }
+    }
+
+    postForm.onsubmit = async (e) => { e.preventDefault(); const btn = e.target.querySelector('button'); showButtonLoading(btn); const payload = { action: "addPost", UsernameRandom: currentUser, Pesan: document.getElementById('pesan').value, Warna: document.querySelector('input[name="warna"]:checked').value }; try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload), mode: 'no-cors' }); postForm.reset(); await fetchAndRenderPosts(true); } catch (error) { alert("Gagal mengirim pesan."); } finally { hideButtonLoading(btn); } };
+    wall.addEventListener('submit', async (e) => { if (e.target.classList.contains('comment-form')) { e.preventDefault(); const form = e.target; const btn = form.querySelector('button'); const input = form.querySelector('input'); const postId = form.dataset.postId; showButtonLoading(btn); const payload = { action: "addComment", UsernameRandom: currentUser, IDPost: postId, IsiKomentar: input.value }; try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload), mode: 'no-cors' }); await fetchAndRenderPosts(true); } catch (error) { alert("Gagal mengirim balasan."); } finally { hideButtonLoading(btn); } } });
+
+    currentUser = getUsername();
+    fetchAndRenderPosts();
+    setInterval(() => fetchAndRenderPosts(true), 15000);
+});
+</script>
+</body>
+</html>
